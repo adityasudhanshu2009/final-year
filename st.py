@@ -285,32 +285,105 @@ def fetch_top_gainers_and_losers():
         return None
 
 # Streamlit app
-st.sidebar.title("Top Gainers and Losers")
 
 # Fetch top gainers and losers
 top_gainers_and_losers = fetch_top_gainers_and_losers()
 if top_gainers_and_losers:
     # Display top 5 gainers
-    st.sidebar.subheader("Top 5 Gainers")
+    st.subheader("Top 5 Gainers")
     for i, gainer in enumerate(top_gainers_and_losers[:5]):
-        st.sidebar.write(f"{i+1}. {gainer['symbol']} -{gainer['price']}")
+        st.write(f"{i+1}. {gainer['symbol']} -{gainer['price']}")
 
     # Display top 5 losers
-    st.sidebar.subheader("Top 5 Losers")
+    st.subheader("Top 5 Losers")
     for i, loser in enumerate(top_gainers_and_losers[-5:][::-1]):
-        st.sidebar.write(f"{i+1}. {loser['symbol']} -{loser['price']}")
+        st.write(f"{i+1}. {loser['symbol']} -{loser['price']}")
 
-# from chatterbot import ChatBot
-# from chatterbot.trainers import ChatterBotCorpusTrainer
 
-# # Initialize the chatbot
-# chatbot = ChatBot("StockBot")
 
-# # Optionally, train the chatbot
-# trainer = ChatterBotCorpusTrainer(chatbot)
-# trainer.train("chatterbot.corpus.english")
-# if st.button("Open Chatbot"):
-#     # Chatbot interaction
-#     user_input = st.text_input("You:", "")
-#     response = chatbot.get_response(user_input)
-#     st.text_area("StockBot:", response)
+import nltk
+from nltk.chat.util import Chat, reflections
+import streamlit as st
+import requests
+
+# Training data for the chatbot
+training_data = [
+    ("Hi", "Hello!"),
+    ("How are you?", "I'm good, thank you."),
+    ("What's your name?", "I'm a chatbot."),
+    ("Who created you?", "I was created by [Your Name]."),
+    ("What is the current price of [ticker]?", "The current price of [ticker] is $[price]."),
+    ("What is the trend of [ticker]?", "The trend of [ticker] is [trend]."),
+    # Add more patterns and responses as needed
+]
+
+# NLTK chatbot initialization
+chatbot = Chat(training_data, reflections)
+
+# Function to preprocess user query and get response from the chatbot
+def handle_query(user_query):
+    # Iterate through training data to find matching patterns
+    for pattern, response in training_data:
+        # Check if the pattern matches the user query
+        if pattern in user_query:
+            # Extract ticker symbol from user query
+            ticker = extract_ticker_symbol(user_query)
+            # If ticker symbol is found, replace placeholder with actual data
+            if ticker:
+                response = response.replace("[ticker]", ticker)
+                # Get current price and trend of the stock
+                current_price = fetch_current_price(ticker)
+                trend = fetch_stock_trend(ticker)
+                # Replace placeholders with actual data
+                response = response.replace("[price]", str(current_price))
+                response = response.replace("[trend]", trend)
+            return response
+    # If no matching pattern is found, let the chatbot respond based on reflections
+    return chatbot.respond(user_query)
+
+# Function to extract ticker symbol from user query
+def extract_ticker_symbol(user_query):
+    # Simple implementation to extract ticker symbol from text
+    # You may need more sophisticated methods depending on your requirements
+    words = user_query.split()
+    for word in words:
+        if word.isupper() and len(word) <= 5:  # Assuming ticker symbols are uppercase and <= 5 characters
+            return word
+    return None
+
+# Function to fetch current price of a stock
+def fetch_current_price(ticker):
+    # API endpoint for current stock price
+    url = f'https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey=ZSiE6L1gYeihi92JTgM5fwrkoMLKSNgA'
+    # Sending GET request to fetch data
+    response = requests.get(url)
+    # Check if request was successful (status code 200)
+    if response.status_code == 200:
+        # Parse the JSON response
+        data = response.json()
+        return data[0]['price']
+    else:
+        st.error("Failed to fetch current price data")
+        return None
+
+# Function to fetch trend of a stock
+def fetch_stock_trend(ticker):
+    # Placeholder function to fetch trend of a stock
+    # You can implement your own logic to determine the trend
+    # For simplicity, returning a static trend for demonstration
+    stock_trends = {
+        'TSLA': ('bullish', 0.8, 0.2),
+        'AAPL': ('bearish', 0.3, 0.7),
+        # Add more ticker symbols and their corresponding trends
+    }
+    return stock_trends.get(ticker)
+
+# Streamlit app
+st.title("Stock Market Chatbot")
+
+# Sidebar for chatbot interface
+st.sidebar.title("Chatbot Interface")
+user_query = st.sidebar.text_input("You:")
+if user_query:
+    bot_response = handle_query(user_query)
+    st.sidebar.text_area("Bot:", bot_response, height=100)
